@@ -4,8 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#111827" />
-  <link rel="manifest" href="manifest.json" />
-  <title>AI 視覺創作工作站</title>
+  <title>AI 視覺創作工作站（除錯版 v2）</title>
   <style>
     body {
       margin: 0;
@@ -52,6 +51,7 @@
       color: #38bdf8;
       font-size: 0.9rem;
       word-break: break-all;
+      white-space: pre-wrap;
     }
     #result img {
       max-width: 100%;
@@ -63,10 +63,10 @@
 </head>
 <body>
   <div class="wrap">
-    <h2>🎨 AI 視覺創作工作站（除錯版）</h2>
+    <h2>🎨 AI 視覺創作工作站（除錯版 v2）</h2>
     <div class="box">
       <label for="apiKey">Pollinations API Key</label>
-      <input id="apiKey" type="password" placeholder="貼上你的 API Key" oninput="localStorage.setItem('poll_key', this.value.trim())" />
+      <input id="apiKey" type="text" placeholder="貼上你的 API Key" />
 
       <label for="prompt">畫面描述（英文）</label>
       <textarea id="prompt">modern city skyline at sunset</textarea>
@@ -84,44 +84,67 @@
         <option value="1024x1024">正方形 1:1 (1024x1024)</option>
       </select>
 
-      <button type="button" onclick="generateImg()">開始生成圖片</button>
+      <button id="genBtn" type="button">開始生成圖片</button>
       <div id="status">尚未開始</div>
       <div id="result"></div>
     </div>
   </div>
 
   <script>
-    document.getElementById('apiKey').value = localStorage.getItem('poll_key') || '';
+    const statusEl = document.getElementById('status');
+    const resultEl = document.getElementById('result');
+    const keyInput = document.getElementById('apiKey');
+    const promptInput = document.getElementById('prompt');
+    const modelSelect = document.getElementById('model');
+    const ratioSelect = document.getElementById('ratio');
+    const genBtn = document.getElementById('genBtn');
 
-    function generateImg() {
-      const status = document.getElementById('status');
-      const result = document.getElementById('result');
-      const key = document.getElementById('apiKey').value.trim();
-      const prompt = document.getElementById('prompt').value.trim();
-      const model = document.getElementById('model').value;
-      const [w, h] = document.getElementById('ratio').value.split('x');
+    try {
+      keyInput.value = localStorage.getItem('poll_key') || '';
+      keyInput.addEventListener('input', () => {
+        localStorage.setItem('poll_key', keyInput.value.trim());
+      });
 
-      if (!prompt) {
-        status.textContent = '請輸入畫面描述';
-        return;
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((regs) => {
+          regs.forEach((r) => r.unregister());
+        });
       }
 
-      const seed = Math.floor(Math.random() * 100000);
-      const base = `https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}?model=${encodeURIComponent(model)}&width=${w}&height=${h}&seed=${seed}&nologo=true`;
-      const finalUrl = key ? ${base}&key=${encodeURIComponent(key)} : base;
+      genBtn.addEventListener('click', () => {
+        try {
+          const key = keyInput.value.trim();
+          const prompt = promptInput.value.trim();
+          const model = modelSelect.value;
+          const [w, h] = ratioSelect.value.split('x');
 
-      status.textContent = '正在載入圖片...';
-      result.innerHTML = '';
+          if (!prompt) {
+            statusEl.textContent = '請輸入畫面描述';
+            return;
+          }
 
-      const img = new Image();
-      img.onload = () => {
-        status.textContent = '生成完成！';
-        result.innerHTML = `<img src="${finalUrl}" alt="結果" />`;
-      };
-      img.onerror = () => {
-        status.textContent = '載入失敗（可能是金鑰無效、模型名稱不支援、額度不足或網路連線被擋）。';
-      };
-      img.src = finalUrl;
+          const seed = Math.floor(Math.random() * 100000);
+          const base = `https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}?model=${encodeURIComponent(model)}&width=${w}&height=${h}&seed=${seed}&nologo=true`;
+          const finalUrl = key ? ${base}&key=${encodeURIComponent(key)} : base;
+
+          statusEl.textContent = `正在請求圖片...\n模型：${model}（${w}x${h}）`;
+          resultEl.innerHTML = '';
+
+          const img = new Image();
+          img.onload = () => {
+            statusEl.textContent = '生成完成！';
+            resultEl.innerHTML = `<img src="${finalUrl}" alt="結果" />`;
+          };
+          img.onerror = () => {
+            statusEl.textContent = '載入失敗：伺服器未回傳有效圖片（請檢查 API Key、額度或網路連線）。';
+          };
+          img.src = finalUrl;
+        } catch (innerErr) {
+          statusEl.textContent = '點擊執行錯誤：' + (innerErr && innerErr.message ? innerErr.message : String(innerErr));
+        }
+      });
+    } catch (initErr) {
+      statusEl.textContent = '初始化錯誤：' + (initErr && initErr.message ? initErr.message : String(initErr));
     }
   </script>
 </body>
