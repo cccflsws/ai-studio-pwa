@@ -7,283 +7,122 @@
   <link rel="manifest" href="manifest.json" />
   <title>AI 視覺創作工作站</title>
   <style>
-    :root {
-      --bg: #0f172a;
-      --card: #1e293b;
-      --card-2: #111827;
-      --text: #f8fafc;
-      --muted: #94a3b8;
-      --accent: #38bdf8;
-      --accent-2: #22c55e;
-      --border: #334155;
-    }
-    * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
-      background: var(--bg);
-      color: var(--text);
+      background: #0f172a;
+      color: #f8fafc;
       padding: 16px;
       line-height: 1.5;
     }
-    .container {
-      max-width: 720px;
-      margin: 0 auto;
-    }
-    h1 {
-      font-size: 1.35rem;
-      margin: 0 0 12px;
-    }
+    .wrap { max-width: 720px; margin: 0 auto; }
     .box {
-      background: var(--card);
-      border: 1px solid var(--border);
+      background: #1e293b;
+      border: 1px solid #334155;
       border-radius: 12px;
       padding: 14px;
       margin-bottom: 14px;
     }
-    label {
-      display: block;
-      font-size: 0.9rem;
-      color: var(--muted);
-      margin-bottom: 6px;
-    }
-    select, input[type="text"], input[type="password"], textarea {
+    label { display: block; color: #94a3b8; margin-bottom: 6px; font-size: 0.9rem; }
+    input, select, textarea {
       width: 100%;
-      background: var(--card-2);
-      color: var(--text);
-      border: 1px solid var(--border);
+      box-sizing: border-box;
+      background: #111827;
+      color: #f8fafc;
+      border: 1px solid #334155;
       border-radius: 8px;
-      padding: 10px 12px;
+      padding: 10px;
       font-size: 1rem;
       margin-bottom: 10px;
     }
-    textarea {
-      min-height: 88px;
-      resize: vertical;
-    }
-    .tabs {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      margin-bottom: 14px;
-    }
-    .tab-btn {
-      padding: 10px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: var(--card);
-      color: var(--muted);
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .tab-btn.active {
-      background: var(--accent);
-      color: #0f172a;
-      border-color: var(--accent);
-    }
-    .panel { display: none; }
-    .panel.active { display: block; }
-    .btn {
-      display: inline-block;
-      background: var(--accent);
-      color: #0f172a;
+    textarea { min-height: 80px; }
+    button {
+      background: #22c55e;
+      color: #052e16;
       border: none;
       border-radius: 8px;
-      padding: 10px 16px;
+      padding: 12px 18px;
       font-weight: 700;
+      font-size: 1rem;
       cursor: pointer;
-      text-decoration: none;
-      margin-right: 8px;
-      margin-top: 4px;
+      width: 100%;
     }
-    .btn.green {
-      background: var(--accent-2);
-      color: #052e16;
-    }
-    .status {
+    #status {
+      margin-top: 10px;
+      color: #38bdf8;
       font-size: 0.9rem;
-      color: var(--accent);
-      min-height: 22px;
-      margin-top: 8px;
       word-break: break-all;
     }
-    .preview-area {
-      text-align: center;
-      margin-top: 12px;
-    }
-    .preview-area img, .preview-area video {
+    #result img {
       max-width: 100%;
       border-radius: 10px;
-      border: 1px solid var(--border);
-      margin-bottom: 10px;
-    }
-    .hint {
-      font-size: 0.82rem;
-      color: var(--muted);
+      margin-top: 12px;
+      border: 1px solid #334155;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>🎨 AI 視覺創作工作站</h1>
-
-    <!-- 引擎設定 -->
+  <div class="wrap">
+    <h2>🎨 AI 視覺創作工作站（除錯版）</h2>
     <div class="box">
-      <label for="engineSelect">目前算圖引擎</label>
-      <select id="engineSelect" onchange="saveSettings()">
-        <option value="pollinations">Pollinations 模式（純文生圖）</option>
-        <option value="comfyui">自家顯卡無限制模式（本機 ComfyUI — 零審查／圖改圖／影音）</option>
+      <label for="apiKey">Pollinations API Key</label>
+      <input id="apiKey" type="password" placeholder="貼上你的 API Key" oninput="localStorage.setItem('poll_key', this.value.trim())" />
+
+      <label for="prompt">畫面描述（英文）</label>
+      <textarea id="prompt">modern city skyline at sunset</textarea>
+
+      <label for="model">模型</label>
+      <select id="model">
+        <option value="flux">flux</option>
+        <option value="zimage">zimage</option>
       </select>
 
-      <div id="pollinationsKeyWrap">
-        <label for="pollinationsKeyInput">Pollinations API Key（至 enter.pollinations.ai 取得）</label>
-        <input id="pollinationsKeyInput" type="password" placeholder="貼上你的 API Key（例如 sk_... 或 pk_...）" onchange="saveSettings()" />
-        <div class="hint">金鑰僅保存在你的瀏覽器本地端（localStorage），不會寫入程式碼。</div>
-      </div>
-
-      <div id="comfyUrlWrap" style="display:none;">
-        <label for="comfyUrlInput">ComfyUI 網址（本機或 Cloudflare 網址）</label>
-        <input id="comfyUrlInput" type="text" placeholder="http://127.0.0.1:8188" onchange="saveSettings()" />
-        <div class="hint">若從手機行動網路連線，請填入電腦產生的 https://xxxx.trycloudflare.com 網址。</div>
-      </div>
-    </div>
-
-    <!-- 功能分頁 -->
-    <div class="tabs">
-      <button class="tab-btn active" onclick="switchTab('t2i', this)">文字生圖</button>
-      <button class="tab-btn" onclick="switchTab('i2i', this)">圖改圖</button>
-      <button class="tab-btn" onclick="switchTab('i2v', this)">影音生成</button>
-    </div>
-
-    <!-- 1. 文字生圖 -->
-    <div id="panel-t2i" class="box panel active">
-      <label for="t2iPrompt">畫面描述（建議使用英文）</label>
-      <textarea id="t2iPrompt" placeholder="例如：editorial fashion portrait in warm sunlight, clean composition, high detail"></textarea>
-
-      <label for="t2iModel">模型選擇</label>
-      <select id="t2iModel">
-        <option value="black-forest-labs/flux.1-schnell">FLUX.1 Schnell</option>
-        <option value="tongyi-mai/z-image-turbo">Z-Image Turbo</option>
+      <label for="ratio">比例</label>
+      <select id="ratio">
+        <option value="1024x576">橫式 16:9 (1024x576)</option>
+        <option value="768x1024">直式 3:4 (768x1024)</option>
+        <option value="1024x1024">正方形 1:1 (1024x1024)</option>
       </select>
 
-      <label for="t2iRatio">畫面比例</label>
-      <select id="t2iRatio">
-        <option value="768x1024">直式 3:4（768x1024）</option>
-        <option value="1024x1024">正方形 1:1（1024x1024）</option>
-        <option value="1024x576">橫式 16:9（1024x576）</option>
-      </select>
-
-      <button class="btn green" onclick="runTextToImage()">開始生成圖片</button>
-      <div id="t2iStatus" class="status"></div>
-      <div id="t2iResult" class="preview-area"></div>
-    </div>
-
-    <!-- 2. 圖改圖 -->
-    <div id="panel-i2i" class="box panel">
-      <label for="i2iFile">選擇參考圖片</label>
-      <input id="i2iFile" type="file" accept="image/*" onchange="previewLocalFile('i2iFile', 'i2iLocalPreview')" />
-      <div id="i2iLocalPreview" class="preview-area"></div>
-
-      <label for="i2iPrompt">修改需求描述</label>
-      <textarea id="i2iPrompt" placeholder="描述你想如何修改這張圖片（需搭配自家 ComfyUI 執行）"></textarea>
-
-      <label for="i2iDenoise">重繪幅度（0.1 保留原圖多 ～ 0.9 變化大）：<span id="denoiseVal">0.55</span></label>
-      <input id="i2iDenoise" type="range" min="0.1" max="0.9" step="0.05" value="0.55" oninput="document.getElementById('denoiseVal').textContent = this.value" />
-
-      <button class="btn" onclick="notifyComfyWorkflow('圖改圖')">送出圖改圖任務</button>
-      <div id="i2iStatus" class="status"></div>
-    </div>
-
-    <!-- 3. 影音生成 -->
-    <div id="panel-i2v" class="box panel">
-      <label for="i2vFile">選擇起始圖片</label>
-      <input id="i2vFile" type="file" accept="image/*" onchange="previewLocalFile('i2vFile', 'i2vLocalPreview')" />
-      <div id="i2vLocalPreview" class="preview-area"></div>
-
-      <label for="i2vPrompt">動態描述</label>
-      <textarea id="i2vPrompt" placeholder="描述鏡頭移動或畫面動態（需搭配自家 ComfyUI 影片工作流）"></textarea>
-
-      <button class="btn" onclick="notifyComfyWorkflow('影音生成')">送出影音生成任務</button>
-      <div id="i2vStatus" class="status"></div>
+      <button type="button" onclick="generateImg()">開始生成圖片</button>
+      <div id="status">尚未開始</div>
+      <div id="result"></div>
     </div>
   </div>
 
   <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(() => {});
-      });
-    }
+    document.getElementById('apiKey').value = localStorage.getItem('poll_key') || '';
 
-    function loadSettings() {
-      const savedEngine = localStorage.getItem('ai_pwa_engine') || 'pollinations';
-      const savedUrl = localStorage.getItem('ai_pwa_comfy_url') || 'http://127.0.0.1:8188';
-      const savedKey = localStorage.getItem('ai_pwa_pollinations_key') || '';
-      document.getElementById('engineSelect').value = savedEngine;
-      document.getElementById('comfyUrlInput').value = savedUrl;
-      document.getElementById('pollinationsKeyInput').value = savedKey;
-      toggleEngineFields();
-    }
-
-    function saveSettings() {
-      const engine = document.getElementById('engineSelect').value;
-      const url = document.getElementById('comfyUrlInput').value.trim();
-      const key = document.getElementById('pollinationsKeyInput').value.trim();
-      localStorage.setItem('ai_pwa_engine', engine);
-      localStorage.setItem('ai_pwa_comfy_url', url);
-      localStorage.setItem('ai_pwa_pollinations_key', key);
-      toggleEngineFields();
-    }
-
-    function toggleEngineFields() {
-      const engine = document.getElementById('engineSelect').value;
-      document.getElementById('comfyUrlWrap').style.display = engine === 'comfyui' ? 'block' : 'none';
-      document.getElementById('pollinationsKeyWrap').style.display = engine === 'pollinations' ? 'block' : 'none';
-    }
-
-    function switchTab(tabName, btnEl) {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-      btnEl.classList.add('active');
-      document.getElementById('panel-' + tabName).classList.add('active');
-    }
-
-    function previewLocalFile(inputId, targetId) {
-      const file = document.getElementById(inputId).files[0];
-      const target = document.getElementById(targetId);
-      if (!file) { target.innerHTML = ''; return; }
-      const url = URL.createObjectURL(file);
-      target.innerHTML = `<img src="${url}" alt="預覽圖" />`;
-    }
-
-    async function runTextToImage() {
-      const prompt = document.getElementById('t2iPrompt').value.trim();
-      const ratio = document.getElementById('t2iRatio').value;
-      const model = document.getElementById('t2iModel').value;
-      const engine = document.getElementById('engineSelect').value;
-      const apiKey = document.getElementById('pollinationsKeyInput').value.trim();
-      const statusEl = document.getElementById('t2iStatus');
-      const resultEl = document.getElementById('t2iResult');
+    function generateImg() {
+      const status = document.getElementById('status');
+      const result = document.getElementById('result');
+      const key = document.getElementById('apiKey').value.trim();
+      const prompt = document.getElementById('prompt').value.trim();
+      const model = document.getElementById('model').value;
+      const [w, h] = document.getElementById('ratio').value.split('x');
 
       if (!prompt) {
-        statusEl.textContent = '請先輸入畫面描述。';
+        status.textContent = '請輸入畫面描述';
         return;
       }
 
-      if (engine === 'comfyui') {
-        notifyComfyWorkflow('文字生圖');
-        return;
-      }
+      const seed = Math.floor(Math.random() * 100000);
+      const base = `https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}?model=${encodeURIComponent(model)}&width=${w}&height=${h}&seed=${seed}&nologo=true`;
+      const finalUrl = key ? ${base}&key=${encodeURIComponent(key)} : base;
 
-      if (!apiKey) {
-        statusEl.textContent = '請先在上方填入 Pollinations API Key（可至 enter.pollinations.ai 申請）。';
-        return;
-      }
+      status.textContent = '正在載入圖片...';
+      result.innerHTML = '';
 
-      const [w, h] = ratio.split('x');
-      const encoded = encodeURIComponent(prompt);
-      const seed = Math.floor(Math.random() * 1000000);
-      const imgUrl = `https://gen.pollinations.ai/image/${encoded}?model=${encodeURIComponent(model)}&width=${w}&height=${h}&seed=${seed}&nologo=true&key=${encodeURIComponent(apiKey)}`;
-
-      statusEl.textContent = '正在產生圖片，請稍候...';
-      resultEl.inn
+      const img = new Image();
+      img.onload = () => {
+        status.textContent = '生成完成！';
+        result.innerHTML = `<img src="${finalUrl}" alt="結果" />`;
+      };
+      img.onerror = () => {
+        status.textContent = '載入失敗（可能是金鑰無效、模型名稱不支援、額度不足或網路連線被擋）。';
+      };
+      img.src = finalUrl;
+    }
+  </script>
+</body>
+</html>
