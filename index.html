@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI 視覺創作工作站（乾淨測試版 v3）</title>
+  <title>AI 視覺創作工作站（階段 1：引擎切換與連線測試）</title>
   <style>
     body {
       margin: 0;
@@ -11,6 +11,7 @@
       background: #0f172a;
       color: #f8fafc;
       padding: 16px;
+      line-height: 1.5;
     }
     .wrap { max-width: 720px; margin: 0 auto; }
     .box {
@@ -18,6 +19,7 @@
       border: 1px solid #334155;
       border-radius: 12px;
       padding: 14px;
+      margin-bottom: 14px;
     }
     label { display: block; color: #94a3b8; margin-bottom: 6px; font-size: 0.9rem; }
     input, select, textarea {
@@ -32,22 +34,29 @@
       margin-bottom: 10px;
     }
     textarea { min-height: 76px; }
+    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
     button {
       background: #22c55e;
       color: #052e16;
       border: none;
       border-radius: 8px;
-      padding: 12px 18px;
+      padding: 12px 16px;
       font-weight: 700;
       font-size: 1rem;
       cursor: pointer;
-      width: 100%;
+      flex: 1;
+      min-width: 150px;
+    }
+    button.secondary {
+      background: #3b82f6;
+      color: #ffffff;
     }
     #st {
-      margin-top: 10px;
+      margin-top: 12px;
       color: #38bdf8;
       font-size: 0.9rem;
       word-break: break-all;
+      white-space: pre-wrap;
     }
     #pic img {
       max-width: 100%;
@@ -55,19 +64,35 @@
       margin-top: 12px;
       border: 1px solid #334155;
     }
+    .hint { font-size: 0.82rem; color: #94a3b8; margin-top: -4px; margin-bottom: 10px; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h2>AI 視覺創作工作站（乾淨測試版 v3）</h2>
+    <h2>AI 視覺創作工作站（階段 1）</h2>
+
     <div class="box">
-      <label for="k">Pollinations API Key</label>
-      <input id="k" type="text" placeholder="貼上 API Key" />
+      <label for="engine">算圖引擎</label>
+      <select id="engine" onchange="onEngineChange()">
+        <option value="pollinations">Pollinations（文字生圖）</option>
+        <option value="comfyui">ComfyUI（本機圖改圖 / 影音生成）</option>
+      </select>
+
+      <div id="pollBox">
+        <label for="k">Pollinations API Key</label>
+        <input id="k" type="text" placeholder="貼上 API Key" oninput="saveSettings()" />
+      </div>
+
+      <div id="comfyBox" style="display:none;">
+        <label for="comfyUrl">ComfyUI 伺服器網址</label>
+        <input id="comfyUrl" type="text" placeholder="例如 https://xxxx.trycloudflare.com 或 http://127.0.0.1:8188" oninput="saveSettings()" />
+        <div class="hint">若從 GitHub Pages（HTTPS）連線，建議使用 HTTPS 通道網址；本機啟動需允許 CORS。</div>
+      </div>
 
       <label for="p">畫面描述（英文）</label>
       <textarea id="p">modern city skyline at sunset</textarea>
 
-      <label for="m">模型</label>
+      <label for="m">模型（Pollinations 用）</label>
       <select id="m">
         <option value="flux">flux</option>
         <option value="zimage">zimage</option>
@@ -80,21 +105,101 @@
         <option value="1024x1024">正方形 1:1 (1024x1024)</option>
       </select>
 
-      <button type="button" onclick="runGen()">開始生成圖片</button>
+      <div class="btn-row">
+        <button type="button" onclick="runAction()">開始生成圖片</button>
+        <button type="button" class="secondary" onclick="testComfy()">測試 ComfyUI 連線</button>
+      </div>
+
       <div id="st">尚未開始</div>
       <div id="pic"></div>
     </div>
   </div>
 
   <script>
-    function runGen() {
+    function trimStr(s) {
+      return (s || "").replace(/^\s+|\s+$/g, "");
+    }
+
+    function saveSettings() {
+      try {
+        localStorage.setItem("poll_key", trimStr(document.getElementById("k").value));
+        localStorage.setItem("comfy_url", trimStr(document.getElementById("comfyUrl").value));
+        localStorage.setItem("engine_mode", document.getElementById("engine").value);
+      } catch (e) {}
+    }
+
+    function loadSettings() {
+      try {
+        var savedKey = localStorage.getItem("poll_key");
+        var savedUrl = localStorage.getItem("comfy_url");
+        var savedEngine = localStorage.getItem("engine_mode");
+        if (savedKey) document.getElementById("k").value = savedKey;
+        if (savedUrl) document.getElementById("comfyUrl").value = savedUrl;
+        if (savedEngine) document.getElementById("engine").value = savedEngine;
+      } catch (e) {}
+      onEngineChange();
+    }
+
+    function onEngineChange() {
+      var mode = document.getElementById("engine").value;
+      document.getElementById("pollBox").style.display = (mode === "pollinations") ? "block" : "none";
+      document.getElementById("comfyBox").style.display = (mode === "comfyui") ? "block" : "none";
+      saveSettings();
+    }
+
+    function testComfy() {
+      var st = document.getElementById("st");
+      var rawUrl = trimStr(document.getElementById("comfyUrl").value).replace(/\/+$/, "");
+      saveSettings();
+
+      if (!rawUrl) {
+        st.innerHTML = "請先輸入 ComfyUI 伺服器網址。";
+        return;
+      }
+
+      st.innerHTML = "正在測試 ComfyUI 連線：" + rawUrl + "/system_stats ...";
+
+      fetch(rawUrl + "/system_stats", { method: "GET" })
+        .then(function (res) {
+          if (!res.ok) {
+            throw new Error("HTTP 狀態碼：" + res.status);
+          }
+          return res.json();
+        })
+        .then(function (data) {
+          var gpuName = "未知 GPU";
+          if (data && data.devices && data.devices.length > 0 && data.devices[0].name) {
+            gpuName = data.devices[0].name;
+          }
+          st.innerHTML = "ComfyUI 連線成功！\n偵測裝置：" + gpuName;
+        })
+        .catch(function (err) {
+          st.innerHTML = "ComfyUI 連線失敗：" + (err && err.message ? err.message : String(err)) +
+            "\n請確認 ComfyUI 已啟動、已允許 CORS，且網址協定（HTTP/HTTPS）符合瀏覽器限制。";
+        });
+    }
+
+    function runAction() {
+      var mode = document.getElementById("engine").value;
+      var st = document.getElementById("st");
+      saveSettings();
+
+      if (mode === "comfyui") {
+        st.innerHTML = "目前已切換為 ComfyUI 模式（階段 1 先完成連線測試，階段 2 將接入圖改圖 Workflow JSON）。";
+        return;
+      }
+
+      runPollinations();
+    }
+
+    function runPollinations() {
       var st = document.getElementById("st");
       var pic = document.getElementById("pic");
       st.innerHTML = "步驟 1：已點擊按鈕...";
       pic.innerHTML = "";
 
-      var key = document.getElementById("k").value.replace(/^\s+|\s+$/g, "");
-      var prompt = document.getElementById("p").value.replace(/^\s+|\s+$/g, "");
+      var key = trimStr(document.getElementById("k").value);
+      var prompt = trimStr(document.getElementById("p").value);
       var model = document.getElementById("m").value;
       var dims = document.getElementById("r").value.split("x");
       var seed = Math.floor(Math.random() * 100000);
@@ -127,6 +232,8 @@
       };
       img.src = url;
     }
+
+    loadSettings();
   </script>
 </body>
 </html>
