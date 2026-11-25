@@ -5,48 +5,183 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI 視覺創作工作站</title>
   <style>
-    body { margin: 0; font-family: Arial, "Noto Sans TC", sans-serif; background: #0f172a; color: #f8fafc; padding: 16px; }
-    .wrap { max-width: 720px; margin: 0 auto; }
-    .box { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 14px; }
+    body { margin: 0; font-family: Arial, "Noto Sans TC", sans-serif; background: #0f172a; color: #f8fafc; padding: 16px; line-height: 1.5; }
+    .wrap { max-width: 760px; margin: 0 auto; }
+    h2 { margin-top: 0; margin-bottom: 12px; font-size: 1.35rem; }
+    .box { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+    .sec-title { font-weight: 700; color: #38bdf8; margin-bottom: 10px; font-size: 1rem; }
     label { display: block; color: #94a3b8; margin-bottom: 6px; font-size: 0.9rem; }
     input, textarea, select { width: 100%; box-sizing: border-box; background: #111827; color: #f8fafc; border: 1px solid #334155; border-radius: 8px; padding: 10px; font-size: 1rem; margin-bottom: 10px; }
-    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
-    button { background: #22c55e; color: #052e16; border: none; border-radius: 8px; padding: 12px 16px; font-weight: 700; cursor: pointer; flex: 1; }
+    textarea { min-height: 76px; }
+    .row-2 { display: flex; gap: 10px; flex-wrap: wrap; }
+    .row-2 > div { flex: 1; min-width: 180px; }
+    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+    button { background: #22c55e; color: #052e16; border: none; border-radius: 8px; padding: 12px 16px; font-weight: 700; cursor: pointer; flex: 1; min-width: 140px; }
     button.blue { background: #3b82f6; color: #fff; }
-    #st { margin-top: 12px; color: #38bdf8; white-space: pre-wrap; word-break: break-all; }
-    #pic img { max-width: 100%; border-radius: 10px; margin-top: 12px; }
+    button.purple { background: #a855f7; color: #fff; }
+    button.gray { background: #334155; color: #f8fafc; }
+    #st { margin-top: 12px; color: #38bdf8; white-space: pre-wrap; word-break: break-all; font-size: 0.92rem; }
+    #pic img, #previewRef { max-width: 100%; border-radius: 10px; margin-top: 10px; border: 1px solid #334155; }
+    #previewRef { max-height: 220px; object-fit: contain; display: none; }
+    details summary { cursor: pointer; color: #94a3b8; font-size: 0.9rem; margin-bottom: 8px; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h2>AI 視覺創作工作站</h2>
+
+    <!-- 連線與共用設定 -->
     <div class="box">
+      <div class="sec-title">1. 連線設定</div>
       <label for="comfyUrl">ComfyUI 雲端網址</label>
-      <input id="comfyUrl" type="text" value="https://cocktail-cotton-committees-perhaps.trycloudflare.com" />
-
-      <label for="p">畫面描述（英文較佳）</label>
-      <textarea id="p">modern city skyline at sunset, warm golden light</textarea>
-
+      <input id="comfyUrl" type="text" value="https://cocktail-cotton-committees-perhaps.trycloudflare.com" oninput="savePrefs()" />
       <div class="btn-row">
-        <button type="button" onclick="runPoll()">Pollinations 生圖</button>
         <button type="button" class="blue" onclick="testComfy()">測試 ComfyUI 連線</button>
+        <button type="button" class="gray" onclick="clearAll()">清除結果</button>
+      </div>
+    </div>
+
+    <!-- 圖改圖專區 -->
+    <div class="box">
+      <div class="sec-title">2. ComfyUI 圖改圖（Img2Img）</div>
+
+      <label for="refFile">選擇參考底圖（自動縮放至最長邊 640px 以保護 T4 顯存）</label>
+      <input id="refFile" type="file" accept="image/*" onchange="handleFileSelect(this)" />
+      <img id="previewRef" alt="參考圖預覽" />
+
+      <label for="posPrompt">正向描述（建議英文）</label>
+      <textarea id="posPrompt" oninput="savePrefs()">cinematic film portrait, warm sunlight, detailed texture, clean composition</textarea>
+
+      <label for="negPrompt">負向排除（建議英文）</label>
+      <input id="negPrompt" type="text" value="blurry, low quality, deformed, watermark, text" oninput="savePrefs()" />
+
+      <div class="row-2">
+        <div>
+          <label for="denoise">去噪強度 Denoise（0.3～0.85）</label>
+          <input id="denoise" type="number" step="0.05" min="0.1" max="1" value="0.65" oninput="savePrefs()" />
+        </div>
+        <div>
+          <label for="steps">取樣步數 Steps（建議 12～20）</label>
+          <input id="steps" type="number" step="1" min="4" max="40" value="12" oninput="savePrefs()" />
+        </div>
       </div>
 
+      <div class="row-2">
+        <div>
+          <label for="ckptName">模型檔名（Checkpoint）</label>
+          <input id="ckptName" type="text" value="dreamshaper_8.safetensors" oninput="savePrefs()" />
+        </div>
+        <div>
+          <label for="seedVal">Seed（留空則每次隨機）</label>
+          <input id="seedVal" type="number" placeholder="自動隨機" oninput="savePrefs()" />
+        </div>
+      </div>
+
+      <details>
+        <summary>進階：節點編號設定（若匯出 API JSON 編號不同請修改）</summary>
+        <div class="row-2">
+          <div>
+            <label for="nodeLoadImg">載入圖片節點 ID</label>
+            <input id="nodeLoadImg" type="text" value="10" oninput="savePrefs()" />
+          </div>
+          <div>
+            <label for="nodeCkpt">載入檢查點節點 ID</label>
+            <input id="nodeCkpt" type="text" value="20" oninput="savePrefs()" />
+          </div>
+          <div>
+            <label for="nodeVaeEnc">VAE 編碼節點 ID</label>
+            <input id="nodeVaeEnc" type="text" value="30" oninput="savePrefs()" />
+          </div>
+        </div>
+        <div class="row-2">
+          <div>
+            <label for="nodePos">正向提示詞節點 ID</label>
+            <input id="nodePos" type="text" value="40" oninput="savePrefs()" />
+          </div>
+          <div>
+            <label for="nodeNeg">負向提示詞節點 ID</label>
+            <input id="nodeNeg" type="text" value="50" oninput="savePrefs()" />
+          </div>
+          <div>
+            <label for="nodeKsampler">KSampler 節點 ID</label>
+            <input id="nodeKsampler" type="text" value="60" oninput="savePrefs()" />
+          </div>
+        </div>
+      </details>
+
+      <div class="btn-row">
+        <button type="button" class="purple" onclick="runImg2Img()">開始 ComfyUI 圖改圖</button>
+      </div>
+    </div>
+
+    <!-- Pollinations 快速文生圖 -->
+    <div class="box">
+      <div class="sec-title">3. Pollinations 快速文生圖</div>
+      <label for="pollPrompt">畫面描述</label>
+      <input id="pollPrompt" type="text" value="modern city skyline at sunset, warm golden light" oninput="savePrefs()" />
+      <div class="btn-row">
+        <button type="button" onclick="runPoll()">Pollinations 生圖</button>
+      </div>
+    </div>
+
+    <div class="box">
+      <div class="sec-title">執行狀態與輸出結果</div>
       <div id="st">尚未開始</div>
       <div id="pic"></div>
     </div>
   </div>
 
   <script>
+    var resizedBlob = null;
+
+    function getBaseUrl() {
+      return (document.getElementById("comfyUrl").value || "").trim().replace(/\/+$/, "");
+    }
+
+    function savePrefs() {
+      try {
+        var ids = [
+          "comfyUrl", "posPrompt", "negPrompt", "denoise", "steps",
+          "ckptName", "seedVal", "nodeLoadImg", "nodeCkpt", "nodeVaeEnc",
+          "nodePos", "nodeNeg", "nodeKsampler", "pollPrompt"
+        ];
+        ids.forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) localStorage.setItem("ai_pwa_" + id, el.value);
+        });
+      } catch (e) {}
+    }
+
+    function loadPrefs() {
+      try {
+        var ids = [
+          "comfyUrl", "posPrompt", "negPrompt", "denoise", "steps",
+          "ckptName", "seedVal", "nodeLoadImg", "nodeCkpt", "nodeVaeEnc",
+          "nodePos", "nodeNeg", "nodeKsampler", "pollPrompt"
+        ];
+        ids.forEach(function (id) {
+          var v = localStorage.getItem("ai_pwa_" + id);
+          var el = document.getElementById(id);
+          if (v !== null && v !== "" && el) el.value = v;
+        });
+      } catch (e) {}
+    }
+
+    function clearAll() {
+      document.getElementById("pic").innerHTML = "";
+      document.getElementById("st").textContent = "已清除結果";
+    }
+
     function testComfy() {
       var st = document.getElementById("st");
-      var url = (document.getElementById("comfyUrl").value || "").trim().replace(/\/+$/, "");
-      if (!url) { st.textContent = "請先輸入 ComfyUI 網址"; return; }
-      st.textContent = "測試連線中：" + url + "/system_stats";
-      fetch(url + "/system_stats")
+      var baseUrl = getBaseUrl();
+      savePrefs();
+      if (!baseUrl) { st.textContent = "請先輸入 ComfyUI 網址"; return; }
+      st.textContent = "測試連線中：" + baseUrl + "/system_stats";
+      fetch(baseUrl + "/system_stats")
         .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
         .then(function (d) {
-          var gpu = (d && d.devices && d.devices[0] && d.devices[0].name) ? d.devices[0].name : "未知 GPU";
+          var gpu = (d && d.devices && d.devices[0] && d.devices[0].name) ? d.devices[0].name : "未知裝置";
           st.textContent = "ComfyUI 連線成功！\n裝置：" + gpu;
         })
         .catch(function (e) {
@@ -54,16 +189,58 @@
         });
     }
 
-    function runPoll() {
-      var st = document.getElementById("st");
-      var pic = document.getElementById("pic");
-      var prompt = (document.getElementById("p").value || "").trim();
-      if (!prompt) { st.textContent = "請先輸入畫面描述"; return; }
-      var seed = Math.floor(Math.random() * 1000000);
-      var url = "https://gen.pollinations.ai/image/" + encodeURIComponent(prompt) + "?model=flux&width=1024&height=576&seed=" + seed + "&nologo=true";
-      st.textContent = "生成中（Seed: " + seed + "）...";
-      pic.innerHTML = '<img src="' + url + '" onload="document.getElementById(\'st\').textContent=\'生成完成！\'" onerror="document.getElementById(\'st\').textContent=\'載入失敗\'" />';
+    function handleFileSelect(input) {
+      var file = input.files && input.files[0];
+      var preview = document.getElementById("previewRef");
+      if (!file) { resizedBlob = null; preview.style.display = "none"; return; }
+
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        var img = new Image();
+        img.onload = function () {
+          var maxSide = 640;
+          var w = img.width;
+          var h = img.height;
+          if (w > maxSide || h > maxSide) {
+            if (w >= h) {
+              h = Math.round(h * (maxSide / w));
+              w = maxSide;
+            } else {
+              w = Math.round(w * (maxSide / h));
+              h = maxSide;
+            }
+          }
+          // 對齊 8 的倍數，避免潛在空間尺寸問題
+          w = Math.max(64, Math.round(w / 8) * 8);
+          h = Math.max(64, Math.round(h / 8) * 8);
+
+          var canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          var ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, w, h);
+
+          canvas.toBlob(function (blob) {
+            resizedBlob = blob;
+            preview.src = URL.createObjectURL(blob);
+            preview.style.display = "block";
+            document.getElementById("st").textContent = "已載入參考圖並縮放為 " + w + "x" + h;
+          }, "image/png", 0.92);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
     }
-  </script>
-</body>
-</html>
+
+    function buildImg2ImgWorkflow(uploadedName) {
+      var idLoadImg = document.getElementById("nodeLoadImg").value.trim() || "10";
+      var idCkpt = document.getElementById("nodeCkpt").value.trim() || "20";
+      var idVaeEnc = document.getElementById("nodeVaeEnc").value.trim() || "30";
+      var idPos = document.getElementById("nodePos").value.trim() || "40";
+      var idNeg = document.getElementById("nodeNeg").value.trim() || "50";
+      var idKs = document.getElementById("nodeKsampler").value.trim() || "60";
+      var idVaeDec = "70";
+      var idSave = "80";
+
+      var ckpt = document.getElementById("ckptName").value.trim() || "dreamshaper_8.safetensors";
+      var posText = document.getElementById("posPrompt").value;
