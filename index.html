@@ -47,7 +47,7 @@
       color: var(--muted);
       margin-bottom: 6px;
     }
-    select, input[type="text"], textarea {
+    select, input[type="text"], input[type="password"], textarea {
       width: 100%;
       background: var(--card-2);
       color: var(--text);
@@ -96,10 +96,6 @@
       margin-right: 8px;
       margin-top: 4px;
     }
-    .btn.secondary {
-      background: #334155;
-      color: var(--text);
-    }
     .btn.green {
       background: var(--accent-2);
       color: #052e16;
@@ -135,9 +131,15 @@
     <div class="box">
       <label for="engineSelect">目前算圖引擎</label>
       <select id="engineSelect" onchange="saveSettings()">
-        <option value="pollinations">免費免安裝模式（Pollinations.ai — 純文生圖）</option>
+        <option value="pollinations">Pollinations 模式（純文生圖）</option>
         <option value="comfyui">自家顯卡無限制模式（本機 ComfyUI — 零審查／圖改圖／影音）</option>
       </select>
+
+      <div id="pollinationsKeyWrap">
+        <label for="pollinationsKeyInput">Pollinations API Key（至 enter.pollinations.ai 取得）</label>
+        <input id="pollinationsKeyInput" type="password" placeholder="貼上你的 API Key（例如 sk_... 或 pk_...）" onchange="saveSettings()" />
+        <div class="hint">金鑰僅保存在你的瀏覽器本地端（localStorage），不會寫入程式碼。</div>
+      </div>
 
       <div id="comfyUrlWrap" style="display:none;">
         <label for="comfyUrlInput">ComfyUI 網址（本機或 Cloudflare 網址）</label>
@@ -155,8 +157,14 @@
 
     <!-- 1. 文字生圖 -->
     <div id="panel-t2i" class="box panel active">
-      <label for="t2iPrompt">畫面描述（建議用英文或簡單中文）</label>
+      <label for="t2iPrompt">畫面描述（建議使用英文）</label>
       <textarea id="t2iPrompt" placeholder="例如：editorial fashion portrait in warm sunlight, clean composition, high detail"></textarea>
+
+      <label for="t2iModel">模型選擇</label>
+      <select id="t2iModel">
+        <option value="black-forest-labs/flux.1-schnell">FLUX.1 Schnell</option>
+        <option value="tongyi-mai/z-image-turbo">Z-Image Turbo</option>
+      </select>
 
       <label for="t2iRatio">畫面比例</label>
       <select id="t2iRatio">
@@ -210,22 +218,27 @@
     function loadSettings() {
       const savedEngine = localStorage.getItem('ai_pwa_engine') || 'pollinations';
       const savedUrl = localStorage.getItem('ai_pwa_comfy_url') || 'http://127.0.0.1:8188';
+      const savedKey = localStorage.getItem('ai_pwa_pollinations_key') || '';
       document.getElementById('engineSelect').value = savedEngine;
       document.getElementById('comfyUrlInput').value = savedUrl;
-      toggleComfyUrlField();
+      document.getElementById('pollinationsKeyInput').value = savedKey;
+      toggleEngineFields();
     }
 
     function saveSettings() {
       const engine = document.getElementById('engineSelect').value;
       const url = document.getElementById('comfyUrlInput').value.trim();
+      const key = document.getElementById('pollinationsKeyInput').value.trim();
       localStorage.setItem('ai_pwa_engine', engine);
       localStorage.setItem('ai_pwa_comfy_url', url);
-      toggleComfyUrlField();
+      localStorage.setItem('ai_pwa_pollinations_key', key);
+      toggleEngineFields();
     }
 
-    function toggleComfyUrlField() {
+    function toggleEngineFields() {
       const engine = document.getElementById('engineSelect').value;
       document.getElementById('comfyUrlWrap').style.display = engine === 'comfyui' ? 'block' : 'none';
+      document.getElementById('pollinationsKeyWrap').style.display = engine === 'pollinations' ? 'block' : 'none';
     }
 
     function switchTab(tabName, btnEl) {
@@ -243,10 +256,12 @@
       target.innerHTML = `<img src="${url}" alt="預覽圖" />`;
     }
 
-    function runTextToImage() {
+    async function runTextToImage() {
       const prompt = document.getElementById('t2iPrompt').value.trim();
       const ratio = document.getElementById('t2iRatio').value;
+      const model = document.getElementById('t2iModel').value;
       const engine = document.getElementById('engineSelect').value;
+      const apiKey = document.getElementById('pollinationsKeyInput').value.trim();
       const statusEl = document.getElementById('t2iStatus');
       const resultEl = document.getElementById('t2iResult');
 
@@ -260,47 +275,15 @@
         return;
       }
 
+      if (!apiKey) {
+        statusEl.textContent = '請先在上方填入 Pollinations API Key（可至 enter.pollinations.ai 申請）。';
+        return;
+      }
+
       const [w, h] = ratio.split('x');
       const encoded = encodeURIComponent(prompt);
       const seed = Math.floor(Math.random() * 1000000);
-      const imgUrl = `https://gen.pollinations.ai/image/${encoded}?model=flux&width=${w}&height=${h}&seed=${seed}&nologo=true`;
+      const imgUrl = `https://gen.pollinations.ai/image/${encoded}?model=${encodeURIComponent(model)}&width=${w}&height=${h}&seed=${seed}&nologo=true&key=${encodeURIComponent(apiKey)}`;
 
       statusEl.textContent = '正在產生圖片，請稍候...';
-      resultEl.innerHTML = '';
-
-      const img = new Image();
-      img.onload = () => {
-        statusEl.textContent = '生成完成！';
-        resultEl.innerHTML = `
-          <img src="${imgUrl}" alt="生成結果" />
-          <div><a class="btn green" href="${imgUrl}" download="ai-image-${seed}.jpg" target="_blank">下載圖片</a></div>
-        `;
-      };
-      img.onerror = () => {
-        statusEl.textContent = '目前免費伺服器忙碌或無法載入，請稍後再試一次，或改用 ComfyUI 引擎。';
-      };
-      img.src = imgUrl;
-    }
-
-    function notifyComfyWorkflow(actionName) {
-      const engine = document.getElementById('engineSelect').value;
-      const comfyUrl = document.getElementById('comfyUrlInput').value.trim();
-      const targetStatus = actionName === '文字生圖'
-        ? document.getElementById('t2iStatus')
-        : actionName === '圖改圖'
-          ? document.getElementById('i2iStatus')
-          : document.getElementById('i2vStatus');
-
-      if (engine !== 'comfyui') {
-        targetStatus.textContent = `「${actionName}」建議先切換上方引擎為「自家顯卡無限制模式（本機 ComfyUI）」再使用。`;
-        return;
-      }
-      if (!comfyUrl) {
-        targetStatus.textContent = '請先在上方填入 ComfyUI 網址。';
-        return;
-      }
-      targetStatus.textContent = `已準備好呼叫 ${comfyUrl} 執行「${actionName}」（第 4、5 步會帶你完成 ComfyUI 啟動與串接）。`;
-    }
-
-    loadSettings();
-  </sc
+      resultEl.inn
