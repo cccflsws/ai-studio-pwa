@@ -244,3 +244,173 @@
 
       var ckpt = document.getElementById("ckptName").value.trim() || "dreamshaper_8.safetensors";
       var posText = document.getElementById("posPrompt").value;
+      var negText = document.getElementById("negPrompt").value;
+      var denoise = parseFloat(document.getElementById("denoise").value);
+      if (isNaN(denoise)) denoise = 0.65;
+      var steps = parseInt(document.getElementById("steps").value, 10);
+      if (isNaN(steps)) steps = 12;
+
+      var seedRaw = document.getElementById("seedVal").value.trim();
+      var seed = seedRaw ? parseInt(seedRaw, 10) : Math.floor(Math.random() * 1000000000);
+      if (isNaN(seed)) seed = Math.floor(Math.random() * 1000000000);
+
+      var wf = {};
+      wf[idCkpt] = {
+        class_type: "CheckpointLoaderSimple",
+        inputs: { ckpt_name: ckpt }
+      };
+      wf[idLoadImg] = {
+        class_type: "LoadImage",
+        inputs: { image: uploadedName }
+      };
+      wf[idVaeEnc] = {
+        class_type: "VAEEncode",
+        inputs: {
+          pixels: [idLoadImg, 0],
+          vae: [idCkpt, 2]
+        }
+      };
+      wf[idPos] = {
+        class_type: "CLIPTextEncode",
+        inputs: {
+          text: posText,
+          clip: [idCkpt, 1]
+        }
+      };
+      wf[idNeg] = {
+        class_type: "CLIPTextEncode",
+        inputs: {
+          text: negText,
+          clip: [idCkpt, 1]
+        }
+      };
+      wf[idKs] = {
+        class_type: "KSampler",
+        inputs: {
+          seed: seed,
+          steps: steps,
+          cfg: 7.5,
+          sampler_name: "euler",
+          scheduler: "normal",
+          denoise: denoise,
+          model: [idCkpt, 0],
+          positive: [idPos, 0],
+          negative: [idNeg, 0],
+          latent_image: [idVaeEnc, 0]
+        }
+      };
+      wf[idVaeDec] = {
+        class_type: "VAEDecode",
+        inputs: {
+          samples: [idKs, 0],
+          vae: [idCkpt, 2]
+        }
+      };
+      wf[idSave] = {
+        class_type: "SaveImage",
+        inputs: {
+          filename_prefix: "pwa_img2img",
+          images: [idVaeDec, 0]
+        }
+      };
+
+      return { workflow: wf, seed: seed, saveNodeId: idSave };
+    }
+
+    async function runImg2Img() {
+      var st = document.getElementById("st");
+      var pic = document.getElementById("pic");
+      var baseUrl = getBaseUrl();
+      savePrefs();
+
+      if (!baseUrl) { st.textContent = "請先輸入 ComfyUI 網址"; return; }
+      if (!resizedBlob) { st.textContent = "請先選擇一張參考底圖"; return; }
+
+      try {
+        pic.innerHTML = "";
+        st.textContent = "1/3 正在上傳參考圖至 ComfyUI...";
+
+        var formData = new FormData();
+        formData.append("image", resizedBlob, "ref_input.png");
+        formData.append("overwrite", "true");
+
+        var upRes = await fetch(baseUrl + "/upload/image", {
+          method: "POST",
+          body: formData
+        });
+        if (!upRes.ok) throw new Error("上傳圖片失敗：HTTP " + upRes.status);
+        var upData = await upRes.json();
+        var uploadedName = upData.name;
+
+        var built = buildImg2ImgWorkflow(uploadedName);
+        st.textContent = "2/3 圖片已上傳（" + uploadedName + "），送出圖改圖任務（Seed: " + built.seed + "）...";
+
+        var clientId = "pwa_" + Math.random().toString(36).slice(2, 10);
+        var promptRes = await fetch(baseUrl + "/prompt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: built.workflow, client_id: clientId })
+        });
+        if (!promptRes.ok) {
+          var errTxt = await promptRes.text();
+          throw new Error("送出工作流失敗（HTTP " + promptRes.status + "）：" + errTxt);
+        }
+        var promptData = await promptRes.json();
+        var promptId = promptData.prompt_id;
+
+        st.textContent = "3/3 T4 正在運算中（ID: " + promptId + "）...";
+
+        var outputImg = null;
+        for (var i = 0; i < 90; i++) {
+          await new Promise(function (resolve) { setTimeout(resolve, 1500); });
+          var histRes = await fetch(baseUrl + "/history/" + encodeURIComponent(promptId));
+          if (!histRes.ok) continue;
+          var histData = await histRes.json();
+          if (histData && histData[promptId]) {
+            var outputs = histData[promptId].outputs || {};
+            var nodeOut = outputs[built.saveNodeId];
+            if (!nodeOut) {
+              var keys = Object.keys(outputs);
+              if (keys.length > 0) nodeOut = outputs[keys[0]];
+            }
+            if (nodeOut && nodeOut.images && nodeOut.images.length > 0) {
+              outputImg = nodeOut.images[0];
+              break;
+            }
+          }
+          st.textContent = "3/3 T4 正在運算中...（已等待 " + ((i + 1) * 1.5).toFixed(0) + " 秒）";
+        }
+
+        if (!outputImg) {
+          throw new Error("等待逾時或未取得輸出圖片，請檢查 Kaggle 執行階段是否仍在運作。");
+        }
+
+        var viewUrl = baseUrl + "/view?filename=" + encodeURIComponent(outputImg.filename) +
+          "&subfolder=" + encodeURIComponent(outputImg.subfolder || "") +
+          "&type=" + encodeURIComponent(outputImg.type || "output") +
+          "&t=" + Date.now();
+
+        st.textContent = "圖改圖完成！（Seed: " + built.seed + "）";
+        pic.innerHTML = '<img src="' + viewUrl + '" alt="ComfyUI 圖改圖結果" />';
+      } catch (err) {
+        st.textContent = "發生錯誤：" + (err && err.message ? err.message : String(err));
+      }
+    }
+
+    function runPoll() {
+      var st = document.getElementById("st");
+      var pic = document.getElementById("pic");
+      var prompt = (document.getElementById("pollPrompt").value || "").trim();
+      savePrefs();
+      if (!prompt) { st.textContent = "請先輸入畫面描述"; return; }
+      var seed = Math.floor(Math.random() * 1000000);
+      var url = "https://gen.pollinations.ai/image/" + encodeURIComponent(prompt) + "?model=flux&width=1024&height=576&seed=" + seed + "&nologo=true";
+      st.textContent = "Pollinations 生成中（Seed: " + seed + "）...";
+      pic.innerHTML = '<img src="' + url + '" onload="document.getElementById(\'st\').textContent=\'生成完成！\'" onerror="document.getElementById(\'st\').textContent=\'載入失敗\'" />';
+    }
+
+    loadPrefs();
+  </script>
+</body>
+</html>
+
