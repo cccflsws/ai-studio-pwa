@@ -105,7 +105,7 @@
       <input id="k" type="text" placeholder="貼上 API Key" oninput="savePrefs()" />
 
       <label for="comfyUrl">ComfyUI 雲端網址（貼上 https://xxxx.trycloudflare.com）</label>
-      <input id="comfyUrl" type="text" placeholder="例如 https://xxxx.trycloudflare.com" oninput="savePrefs()" />
+      <input id="comfyUrl" type="text" value="https://canvas-beyond-partner-acquired.trycloudflare.com" oninput="savePrefs()" />
 
       <label for="p">畫面描述（建議使用英文）</label>
       <textarea id="p" oninput="savePrefs()">modern city skyline at sunset, warm golden light, cinematic composition</textarea>
@@ -244,59 +244,3 @@
       savePrefs();
 
       var key = trimStr(document.getElementById("k").value);
-      var prompt = trimStr(document.getElementById("p").value);
-      var neg = trimStr(document.getElementById("neg").value);
-      var model = document.getElementById("m").value;
-      var dims = document.getElementById("r").value.split("x");
-      var randChecked = document.getElementById("randSeed").checked;
-      var seedInput = trimStr(document.getElementById("seed").value);
-      var seedNum;
-
-      if (!prompt) {
-        st.textContent = "請先輸入畫面描述";
-        return;
-      }
-
-      if (randChecked || !seedInput) {
-        seedNum = Math.floor(Math.random() * 1000000);
-        document.getElementById("seed").value = String(seedNum);
-        savePrefs();
-      } else {
-        seedNum = parseInt(seedInput, 10);
-        if (isNaN(seedNum)) {
-          seedNum = Math.floor(Math.random() * 1000000);
-        }
-      }
-
-      var fullPrompt = prompt;
-      if (neg) {
-        fullPrompt = fullPrompt + ", without " + neg;
-      }
-
-      var url = "https://gen.pollinations.ai/image/" + encodeURIComponent(fullPrompt) +
-        "?model=" + encodeURIComponent(model) +
-        "&width=" + dims[0] +
-        "&height=" + dims[1] +
-        "&seed=" + seedNum +
-        "&nologo=true";
-
-      if (key) {
-        url = url + "&key=" + encodeURIComponent(key);
-      }
-
-      st.textContent = "正在生成圖片（模型：" + model + "，" + dims[0] + "x" + dims[1] + "）...";
-      seedUsedEl.textContent = "本次使用 Seed：" + seedNum;
-      pic.innerHTML = "";
-
-      var img = new Image();
-      img.onload = function () {
-        st.textContent = "生成完成！";
-        pic.innerHTML = '<img src="' + url + '" alt="生成圖片" />';
-      };
-      img.onerror = function () {
-        st.textContent = "載入失敗（請檢查 API Key、額度、模型名稱或網路連線）。";
-      };
-      img.src = url;
-    }
-
-    if ("
