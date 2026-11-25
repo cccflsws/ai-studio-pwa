@@ -3,67 +3,67 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0f172a" />
-  <link rel="manifest" href="manifest.json" />
   <title>AI 視覺創作工作站</title>
   <style>
-    body {
-      margin: 0;
-      font-family: Arial, "Noto Sans TC", sans-serif;
-      background: #0f172a;
-      color: #f8fafc;
-      padding: 16px;
-      line-height: 1.5;
-    }
+    body { margin: 0; font-family: Arial, "Noto Sans TC", sans-serif; background: #0f172a; color: #f8fafc; padding: 16px; }
     .wrap { max-width: 720px; margin: 0 auto; }
-    h2 { margin-top: 0; margin-bottom: 12px; font-size: 1.35rem; }
-    .box {
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 12px;
-      padding: 14px;
-      margin-bottom: 14px;
-    }
+    .box { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 14px; }
     label { display: block; color: #94a3b8; margin-bottom: 6px; font-size: 0.9rem; }
-    input, select, textarea {
-      width: 100%;
-      box-sizing: border-box;
-      background: #111827;
-      color: #f8fafc;
-      border: 1px solid #334155;
-      border-radius: 8px;
-      padding: 10px;
-      font-size: 1rem;
-      margin-bottom: 10px;
+    input, textarea, select { width: 100%; box-sizing: border-box; background: #111827; color: #f8fafc; border: 1px solid #334155; border-radius: 8px; padding: 10px; font-size: 1rem; margin-bottom: 10px; }
+    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    button { background: #22c55e; color: #052e16; border: none; border-radius: 8px; padding: 12px 16px; font-weight: 700; cursor: pointer; flex: 1; }
+    button.blue { background: #3b82f6; color: #fff; }
+    #st { margin-top: 12px; color: #38bdf8; white-space: pre-wrap; word-break: break-all; }
+    #pic img { max-width: 100%; border-radius: 10px; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h2>AI 視覺創作工作站</h2>
+    <div class="box">
+      <label for="comfyUrl">ComfyUI 雲端網址</label>
+      <input id="comfyUrl" type="text" value="https://cocktail-cotton-committees-perhaps.trycloudflare.com" />
+
+      <label for="p">畫面描述（英文較佳）</label>
+      <textarea id="p">modern city skyline at sunset, warm golden light</textarea>
+
+      <div class="btn-row">
+        <button type="button" onclick="runPoll()">Pollinations 生圖</button>
+        <button type="button" class="blue" onclick="testComfy()">測試 ComfyUI 連線</button>
+      </div>
+
+      <div id="st">尚未開始</div>
+      <div id="pic"></div>
+    </div>
+  </div>
+
+  <script>
+    function testComfy() {
+      var st = document.getElementById("st");
+      var url = (document.getElementById("comfyUrl").value || "").trim().replace(/\/+$/, "");
+      if (!url) { st.textContent = "請先輸入 ComfyUI 網址"; return; }
+      st.textContent = "測試連線中：" + url + "/system_stats";
+      fetch(url + "/system_stats")
+        .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+        .then(function (d) {
+          var gpu = (d && d.devices && d.devices[0] && d.devices[0].name) ? d.devices[0].name : "未知 GPU";
+          st.textContent = "ComfyUI 連線成功！\n裝置：" + gpu;
+        })
+        .catch(function (e) {
+          st.textContent = "連線失敗：" + e.message;
+        });
     }
-    textarea { min-height: 82px; }
-    .row-2 { display: flex; gap: 10px; flex-wrap: wrap; }
-    .row-2 > div { flex: 1; min-width: 180px; }
-    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
-    button {
-      background: #22c55e;
-      color: #052e16;
-      border: none;
-      border-radius: 8px;
-      padding: 12px 16px;
-      font-weight: 700;
-      font-size: 1rem;
-      cursor: pointer;
-      flex: 2;
-      min-width: 150px;
+
+    function runPoll() {
+      var st = document.getElementById("st");
+      var pic = document.getElementById("pic");
+      var prompt = (document.getElementById("p").value || "").trim();
+      if (!prompt) { st.textContent = "請先輸入畫面描述"; return; }
+      var seed = Math.floor(Math.random() * 1000000);
+      var url = "https://gen.pollinations.ai/image/" + encodeURIComponent(prompt) + "?model=flux&width=1024&height=576&seed=" + seed + "&nologo=true";
+      st.textContent = "生成中（Seed: " + seed + "）...";
+      pic.innerHTML = '<img src="' + url + '" onload="document.getElementById(\'st\').textContent=\'生成完成！\'" onerror="document.getElementById(\'st\').textContent=\'載入失敗\'" />';
     }
-    button.blue {
-      background: #3b82f6;
-      color: #ffffff;
-      flex: 1;
-      min-width: 140px;
-    }
-    button.secondary {
-      background: #334155;
-      color: #f8fafc;
-      flex: 1;
-      min-width: 110px;
-    }
-    .check-line {
-      display: flex;
-      align-items: center;
+  </script>
+</body>
+</html>
