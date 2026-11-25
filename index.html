@@ -3,16 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#111827" />
-  <title>AI 視覺創作工作站（除錯版 v2）</title>
+  <title>AI 視覺創作工作站（乾淨測試版 v3）</title>
   <style>
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
+      font-family: Arial, "Noto Sans TC", sans-serif;
       background: #0f172a;
       color: #f8fafc;
       padding: 16px;
-      line-height: 1.5;
     }
     .wrap { max-width: 720px; margin: 0 auto; }
     .box {
@@ -20,7 +18,6 @@
       border: 1px solid #334155;
       border-radius: 12px;
       padding: 14px;
-      margin-bottom: 14px;
     }
     label { display: block; color: #94a3b8; margin-bottom: 6px; font-size: 0.9rem; }
     input, select, textarea {
@@ -34,7 +31,7 @@
       font-size: 1rem;
       margin-bottom: 10px;
     }
-    textarea { min-height: 80px; }
+    textarea { min-height: 76px; }
     button {
       background: #22c55e;
       color: #052e16;
@@ -46,14 +43,13 @@
       cursor: pointer;
       width: 100%;
     }
-    #status {
+    #st {
       margin-top: 10px;
       color: #38bdf8;
       font-size: 0.9rem;
       word-break: break-all;
-      white-space: pre-wrap;
     }
-    #result img {
+    #pic img {
       max-width: 100%;
       border-radius: 10px;
       margin-top: 12px;
@@ -63,88 +59,73 @@
 </head>
 <body>
   <div class="wrap">
-    <h2>🎨 AI 視覺創作工作站（除錯版 v2）</h2>
+    <h2>AI 視覺創作工作站（乾淨測試版 v3）</h2>
     <div class="box">
-      <label for="apiKey">Pollinations API Key</label>
-      <input id="apiKey" type="text" placeholder="貼上你的 API Key" />
+      <label for="k">Pollinations API Key</label>
+      <input id="k" type="text" placeholder="貼上 API Key" />
 
-      <label for="prompt">畫面描述（英文）</label>
-      <textarea id="prompt">modern city skyline at sunset</textarea>
+      <label for="p">畫面描述（英文）</label>
+      <textarea id="p">modern city skyline at sunset</textarea>
 
-      <label for="model">模型</label>
-      <select id="model">
+      <label for="m">模型</label>
+      <select id="m">
         <option value="flux">flux</option>
         <option value="zimage">zimage</option>
       </select>
 
-      <label for="ratio">比例</label>
-      <select id="ratio">
+      <label for="r">比例</label>
+      <select id="r">
         <option value="1024x576">橫式 16:9 (1024x576)</option>
         <option value="768x1024">直式 3:4 (768x1024)</option>
         <option value="1024x1024">正方形 1:1 (1024x1024)</option>
       </select>
 
-      <button id="genBtn" type="button">開始生成圖片</button>
-      <div id="status">尚未開始</div>
-      <div id="result"></div>
+      <button type="button" onclick="runGen()">開始生成圖片</button>
+      <div id="st">尚未開始</div>
+      <div id="pic"></div>
     </div>
   </div>
 
   <script>
-    const statusEl = document.getElementById('status');
-    const resultEl = document.getElementById('result');
-    const keyInput = document.getElementById('apiKey');
-    const promptInput = document.getElementById('prompt');
-    const modelSelect = document.getElementById('model');
-    const ratioSelect = document.getElementById('ratio');
-    const genBtn = document.getElementById('genBtn');
+    function runGen() {
+      var st = document.getElementById("st");
+      var pic = document.getElementById("pic");
+      st.innerHTML = "步驟 1：已點擊按鈕...";
+      pic.innerHTML = "";
 
-    try {
-      keyInput.value = localStorage.getItem('poll_key') || '';
-      keyInput.addEventListener('input', () => {
-        localStorage.setItem('poll_key', keyInput.value.trim());
-      });
+      var key = document.getElementById("k").value.replace(/^\s+|\s+$/g, "");
+      var prompt = document.getElementById("p").value.replace(/^\s+|\s+$/g, "");
+      var model = document.getElementById("m").value;
+      var dims = document.getElementById("r").value.split("x");
+      var seed = Math.floor(Math.random() * 100000);
 
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then((regs) => {
-          regs.forEach((r) => r.unregister());
-        });
+      if (!prompt) {
+        st.innerHTML = "請輸入畫面描述";
+        return;
       }
 
-      genBtn.addEventListener('click', () => {
-        try {
-          const key = keyInput.value.trim();
-          const prompt = promptInput.value.trim();
-          const model = modelSelect.value;
-          const [w, h] = ratioSelect.value.split('x');
+      var url = "https://gen.pollinations.ai/image/" + encodeURIComponent(prompt) +
+        "?model=" + encodeURIComponent(model) +
+        "&width=" + dims[0] +
+        "&height=" + dims[1] +
+        "&seed=" + seed +
+        "&nologo=true";
 
-          if (!prompt) {
-            statusEl.textContent = '請輸入畫面描述';
-            return;
-          }
+      if (key) {
+        url = url + "&key=" + encodeURIComponent(key);
+      }
 
-          const seed = Math.floor(Math.random() * 100000);
-          const base = `https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}?model=${encodeURIComponent(model)}&width=${w}&height=${h}&seed=${seed}&nologo=true`;
-          const finalUrl = key ? ${base}&key=${encodeURIComponent(key)} : base;
+      st.innerHTML = "步驟 2：正在請求圖片...";
 
-          statusEl.textContent = `正在請求圖片...\n模型：${model}（${w}x${h}）`;
-          resultEl.innerHTML = '';
-
-          const img = new Image();
-          img.onload = () => {
-            statusEl.textContent = '生成完成！';
-            resultEl.innerHTML = `<img src="${finalUrl}" alt="結果" />`;
-          };
-          img.onerror = () => {
-            statusEl.textContent = '載入失敗：伺服器未回傳有效圖片（請檢查 API Key、額度或網路連線）。';
-          };
-          img.src = finalUrl;
-        } catch (innerErr) {
-          statusEl.textContent = '點擊執行錯誤：' + (innerErr && innerErr.message ? innerErr.message : String(innerErr));
-        }
-      });
-    } catch (initErr) {
-      statusEl.textContent = '初始化錯誤：' + (initErr && initErr.message ? initErr.message : String(initErr));
+      var img = new Image();
+      img.onload = function () {
+        st.innerHTML = "步驟 3：生成完成！";
+        pic.innerHTML = '<img src="' + url + '" alt="生成圖片" />';
+      };
+      img.onerror = function () {
+        st.innerHTML = "步驟 3：載入失敗（請檢查金鑰、額度或模型設定）。";
+      };
+      img.src = url;
     }
   </script>
 </body>
