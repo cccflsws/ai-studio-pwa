@@ -50,13 +50,19 @@
       font-size: 1rem;
       cursor: pointer;
       flex: 2;
-      min-width: 160px;
+      min-width: 150px;
+    }
+    button.blue {
+      background: #3b82f6;
+      color: #ffffff;
+      flex: 1;
+      min-width: 140px;
     }
     button.secondary {
       background: #334155;
       color: #f8fafc;
       flex: 1;
-      min-width: 120px;
+      min-width: 110px;
     }
     .check-line {
       display: flex;
@@ -98,6 +104,9 @@
       <label for="k">Pollinations API Key（自動保存在本機瀏覽器）</label>
       <input id="k" type="text" placeholder="貼上 API Key" oninput="savePrefs()" />
 
+      <label for="comfyUrl">ComfyUI 雲端網址（貼上 https://xxxx.trycloudflare.com）</label>
+      <input id="comfyUrl" type="text" placeholder="例如 https://xxxx.trycloudflare.com" oninput="savePrefs()" />
+
       <label for="p">畫面描述（建議使用英文）</label>
       <textarea id="p" oninput="savePrefs()">modern city skyline at sunset, warm golden light, cinematic composition</textarea>
 
@@ -106,7 +115,7 @@
 
       <div class="row-2">
         <div>
-          <label for="m">模型</label>
+          <label for="m">模型（Pollinations 用）</label>
           <select id="m" onchange="savePrefs()">
             <option value="flux">flux</option>
             <option value="zimage">zimage</option>
@@ -139,6 +148,7 @@
 
       <div class="btn-row">
         <button type="button" onclick="runGen()">開始生成圖片</button>
+        <button type="button" class="blue" onclick="testComfy()">測試 ComfyUI 連線</button>
         <button type="button" class="secondary" onclick="clearResult()">清除結果</button>
       </div>
 
@@ -156,6 +166,7 @@
     function savePrefs() {
       try {
         localStorage.setItem("pwa_poll_key", trimStr(document.getElementById("k").value));
+        localStorage.setItem("pwa_comfy_url", trimStr(document.getElementById("comfyUrl").value));
         localStorage.setItem("pwa_poll_prompt", document.getElementById("p").value);
         localStorage.setItem("pwa_poll_neg", document.getElementById("neg").value);
         localStorage.setItem("pwa_poll_model", document.getElementById("m").value);
@@ -168,6 +179,7 @@
     function loadPrefs() {
       try {
         var k = localStorage.getItem("pwa_poll_key");
+        var u = localStorage.getItem("pwa_comfy_url");
         var p = localStorage.getItem("pwa_poll_prompt");
         var neg = localStorage.getItem("pwa_poll_neg");
         var m = localStorage.getItem("pwa_poll_model");
@@ -176,6 +188,7 @@
         var rand = localStorage.getItem("pwa_poll_rand");
 
         if (k !== null && k !== "") document.getElementById("k").value = k;
+        if (u !== null && u !== "") document.getElementById("comfyUrl").value = u;
         if (p !== null && p !== "") document.getElementById("p").value = p;
         if (neg !== null) document.getElementById("neg").value = neg;
         if (m) document.getElementById("m").value = m;
@@ -189,6 +202,38 @@
       document.getElementById("pic").innerHTML = "";
       document.getElementById("seedUsed").textContent = "";
       document.getElementById("st").textContent = "已清除結果，尚未開始";
+    }
+
+    function testComfy() {
+      var st = document.getElementById("st");
+      var rawUrl = trimStr(document.getElementById("comfyUrl").value).replace(/\/+$/, "");
+      savePrefs();
+
+      if (!rawUrl) {
+        st.textContent = "請先輸入 ComfyUI 雲端網址。";
+        return;
+      }
+
+      st.textContent = "正在測試 ComfyUI 連線：" + rawUrl + "/system_stats ...";
+
+      fetch(rawUrl + "/system_stats", { method: "GET" })
+        .then(function (res) {
+          if (!res.ok) {
+            throw new Error("HTTP 狀態碼：" + res.status);
+          }
+          return res.json();
+        })
+        .then(function (data) {
+          var gpuName = "未知 GPU";
+          if (data && data.devices && data.devices.length > 0 && data.devices[0].name) {
+            gpuName = data.devices[0].name;
+          }
+          st.textContent = "ComfyUI 連線成功！\n偵測裝置：" + gpuName;
+        })
+        .catch(function (err) {
+          st.textContent = "ComfyUI 連線失敗：" + (err && err.message ? err.message : String(err)) +
+            "\n請確認 Kaggle 啟動儲存格仍在執行，且網址為 https:// 開頭。";
+        });
     }
 
     function runGen() {
@@ -254,13 +299,4 @@
       img.src = url;
     }
 
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", function () {
-        navigator.serviceWorker.register("sw.js").catch(function () {});
-      });
-    }
-
-    loadPrefs();
-  </script>
-</body>
-</html>
+    if ("
