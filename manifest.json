@@ -1,0 +1,16 @@
+{
+  "name": "AI 視覺創作工作站",
+  "short_name": "AI 創作",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#111827",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/12222/12222560.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
